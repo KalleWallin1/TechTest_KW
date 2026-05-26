@@ -2,7 +2,7 @@
 
 Author: Kalle Wallin
 Date: 2026-05-26
-Target engine: Unity 2022.3 LTS, URP, Windows standalone build
+Target engine: Unity 6 (6000.3.16f1), URP, Windows standalone build
 
 This folder holds the planning and specification documents for the Rightware Technical Artist Assessment. It is the source of truth for the implementation that lives in the parent `TechnicalTask_KW_2026` folder.
 

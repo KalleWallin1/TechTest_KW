@@ -9,7 +9,7 @@ Things that need to be resolved during implementation or confirmed before final 
 
 ## Decisions to make during implementation
 
-- **Number layer rendering** — should the digit "4" be added to the existing RotationTexture.png strip (modify the asset to be 1280×256 with "1 2 3 4 5") or should the strip be regenerated to support 4 digits cleanly? The provided texture already shows "1 2 3 4" — actually it includes all four digits, so no modification needed. (Confirmed from inspection: RotationTexture.png is 1024×256 with "1 2 3 4" laid out.)
+- **Number layer rendering** — confirmed from inspection: `RotationTexture.png` is 1024×256 with "1 2 3 4" laid out horizontally. All four digits including State 4's "4" are already present, so no texture modification is needed.
 - **N segments for Plan A** — 32 is the default but could drop to 24 if visual quality is acceptable, saving 16 triangles. Will test once running.
 - **Whether SceneSwitcher creates a single build with both scenes (preferred) or two separate builds.** Default: single build, `Space` toggles scenes.
 - **Camera setup** — orthographic vs. perspective. The reference clip looks perspective-flat (no parallax visible), so either works. Orthographic is simpler and avoids any perspective distortion issues; perspective is needed if we want VR. Default: orthographic for non-VR build, perspective for any VR-enabled build.
@@ -30,7 +30,7 @@ Things that need to be resolved during implementation or confirmed before final 
 
 ## Already decided (locked)
 
-- Engine: Unity 2022.3 LTS, URP
+- Engine: Unity 6 (6000.3.16f1), URP
 - Two scenes: Plan A geometric, Plan B SDF
 - State 4: 5-pointed star with pulsing breathing animation, blue/cyan color
 - Single Windows build with scene switcher

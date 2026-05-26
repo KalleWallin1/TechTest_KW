@@ -2,7 +2,7 @@
 
 ## Engine choice
 
-**Unity 6.3 LTS (6000.3.16f1)** with **URP (Universal Render Pipeline)**.
+**Unity 6 (6000.3.16f1)** with **URP (Universal Render Pipeline)**.
 
 Rationale:
 - Trivial CSV parsing

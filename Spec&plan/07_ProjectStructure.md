@@ -2,8 +2,12 @@
 
 ## Folder layout
 
+The repository root is `TechTest_KW/`. The Unity project lives directly under `TechnicalTask_KW_2026/` (no extra `UnityProject/` wrapper). Planning docs, source files from Rightware, and DCC source files are siblings of the Unity project — kept outside the Unity project so they don't pollute `Assets/`.
+
 ```
-TechnicalTask_KW_2026/
+TechTest_KW/                            ← repo root
+├── .gitignore
+│
 ├── Spec&plan/                          ← THIS FOLDER (the planning docs)
 │   ├── 00_README.md
 │   ├── 01_AnimationAnalysis.md
@@ -13,22 +17,35 @@ TechnicalTask_KW_2026/
 │   ├── 05_StateController_and_CSV.md
 │   ├── 06_State4_Design.md
 │   ├── 07_ProjectStructure.md
-│   └── 08_OpenQuestions.md
+│   ├── 08_OpenQuestions.md
+│   └── 09_CSVAnalysis.md
 │
-├── UnityProject/                       ← The Unity project root
+├── TaskSourceFiles/                    ← Provided by Rightware (read-only reference)
+│   ├── Animation.mkv                   (reference video)
+│   ├── Technical_Artist_Assessment.pdf (the brief)
+│   ├── Assets/                         (Triangle.png, Hexagon.png, Circle.png, RotationTexture.png)
+│   └── Data/                           (Short_Data_Animation_Match.csv, Long_Data_Free_Form.csv)
+│
+├── SourceAsset/                        ← DCC working files (kept outside Unity project)
+│   ├── Sources.blend                   (Blender working file — any modeling/UV/export work)
+│   └── Sources.max                     (3ds Max working file — same purpose)
+│
+├── TechnicalTask_KW_2026/              ← The Unity project root
 │   ├── Assets/
 │   │   ├── Scenes/
 │   │   │   ├── PlanA_GeometricMorph.unity
 │   │   │   └── PlanB_SDFMorph.unity
 │   │   ├── Scripts/
 │   │   │   ├── StateController.cs
-│   │   │   ├── CSVDriver.cs
-│   │   │   ├── MorphMeshGenerator.cs        (Plan A)
-│   │   │   ├── ShapeMorphController.cs      (Plan A)
-│   │   │   ├── ShapeMorphSDFController.cs   (Plan B)
-│   │   │   ├── NumberStripController.cs     (shared)
-│   │   │   ├── SceneSwitcher.cs             (Space toggles between scenes)
-│   │   │   └── UIPanel.cs                   (minimal debug UI)
+│   │   │   ├── CSVDriver.cs                  (parses CSV, drives playback)
+│   │   │   ├── CSVObjectController.cs        (per-object position + state + alpha fade)
+│   │   │   ├── CSVObjectPool.cs              (long-data multi-object spawn/despawn)
+│   │   │   ├── MorphMeshGenerator.cs         (Plan A — mesh with baked morph targets)
+│   │   │   ├── ShapeMorphController.cs       (Plan A — material driver)
+│   │   │   ├── ShapeMorphSDFController.cs    (Plan B — material driver)
+│   │   │   ├── NumberStripController.cs      (shared — UV scroll on digit quad)
+│   │   │   ├── SceneSwitcher.cs              (Space toggles between scenes)
+│   │   │   └── UIPanel.cs                    (minimal debug UI)
 │   │   ├── Shaders/
 │   │   │   ├── ShapeMorphGeometric.shader
 │   │   │   ├── ShapeMorphSDF.shader
@@ -46,23 +63,32 @@ TechnicalTask_KW_2026/
 │   │   │   ├── ShapeMorph_PlanA.prefab
 │   │   │   └── ShapeMorph_PlanB.prefab
 │   │   ├── StreamingAssets/
-│   │   │   ├── ShortData.csv            (from Part 2)
-│   │   │   └── LongData.csv             (from Part 2, optional)
+│   │   │   ├── Short_Data_Animation_Match.csv
+│   │   │   └── Long_Data_Free_Form.csv          (optional per brief)
+│   │   ├── Editor/
+│   │   │   └── BuildScript.cs           (Tools > Build Windows menu command)
 │   │   └── Settings/
 │   │       └── URP-PipelineAsset.asset
-│   │
 │   ├── Packages/
 │   ├── ProjectSettings/
-│   └── Library/   (gitignored)
+│   ├── Library/                        (gitignored — auto-generated)
+│   ├── Logs/                           (gitignored)
+│   └── UserSettings/                   (gitignored)
 │
-├── Build/                              ← Output Windows build
+├── Build/                              ← Output Windows build (gitignored)
 │   ├── TechnicalTask_KW.exe
 │   ├── TechnicalTask_KW_Data/
 │   └── UnityPlayer.dll
 │
-├── ProcessDescription.md               ← The required written process description
+├── ProcessDescription.md               ← The required written process description (production write-up)
 └── README.md                           ← How to run the build, how to open the project
 ```
+
+### Notes on out-of-Unity folders
+
+- **`TaskSourceFiles/`** is the unmodified material handed over by Rightware. Anything from here that ends up in the build is *copied* into `TechnicalTask_KW_2026/Assets/Textures/` or `Assets/StreamingAssets/`. This keeps a clean separation between "what was given" and "what was authored".
+- **`SourceAsset/`** holds DCC working files (`.blend`, `.max`) — original source for any modeled or UV-prepared geometry that gets exported into the Unity project. These are kept outside the Unity project to avoid Unity attempting to import them, and to keep `.blend1` backup churn out of the project. If a `.fbx` is exported from one of these for use in Plan A, the `.fbx` goes into `Assets/Models/` and the `.blend`/`.max` stays here.
+- The DCC source files and this folder layout are also useful raw material for the `ProcessDescription.md` write-up, which can reference the modeling/baking pipeline as well as the in-engine work.
 
 ## Scene contents (both scenes share the same structure)
 

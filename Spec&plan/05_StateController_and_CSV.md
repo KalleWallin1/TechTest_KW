@@ -54,73 +54,68 @@ All blends use `smoothstep(0, 1, t)` for the visual T value, which produces an S
 
 ## CSV format
 
-Part 2 of the brief provides two CSV files in the `Data` folder. The exact format is not yet known (CSVs will be shared by Rightware when the assessment continues). The expected schema based on context:
+> **Status:** confirmed from the files received 2026-05-26. Schema and per-file analysis live in **`09_CSVAnalysis.md`** — that document is the source of truth. This section is a short summary; full state-semantic analysis (including the State 4 = "leaving scene" finding) is in spec 09.
 
-### Short data file
-
-Likely a sequence of `(time, state)` rows:
+Both files share the same six-column schema:
 
 ```
-time,state
-0.0,1
-2.3,2
-7.7,3
-9.5,4
+frame, object_id, x, y, z, state
 ```
 
-Or possibly `(time, state, transitionDuration)`:
+- `frame` — integer, 1-indexed, 24 fps
+- `object_id` — integer, used in long data to identify the persistent object across frames
+- `x, y, z` — float world-space position; **may be empty** (object leaving scene / lost tracking)
+- `state` — integer 1–4, **target state** for the renderer
 
-```
-time,state,duration
-0.0,1,0
-2.3,2,2.1
-7.7,3,1.0
-9.5,4,0.8
-```
+### `Short_Data_Animation_Match.csv`
 
-Or even per-frame state values:
+- 250 rows, single object (`object_id = 1`), one row per video frame
+- This file is the CSV form of the reference animation — replaying it reproduces the reference
+- State transitions: frame 43 (1→2), frame 181 (2→3), frame 231 (3→4)
+- Frames 226–250 have empty XYZ (object leaving scene)
 
-```
-frame,state
-0,1
-1,1
-...
-55,2
-...
-```
+### `Long_Data_Free_Form.csv`
 
-The parser will be flexible — it will detect the column layout from the header row and adapt.
+- 12,682 rows, 22 objects, frame range 16–5000 (~208 s)
+- Multi-object: 3–4 objects active simultaneously at peak
+- 11 of 22 objects end in state 4 with empty XYZ — confirms state 4 as terminal/exit
+- World extent much larger than short file — needs `worldScale` (see spec 09)
 
-### Long data file
+### Parser behavior
 
-The brief calls this optional. It is presumably either:
-- A higher-resolution version of the short data
-- A more complex sequence with more state changes
-- Per-frame data over a longer duration
+- State value is the **target state**: `StateController.GoToState(newState, transitionDuration)` is called the instant the state column changes; the smoothstep easing produces the visible transition.
+- Empty XYZ: hold last known position.
+- Frame timing: 24 fps mapping, with playback rate and loop both configurable on `CSVDriver`.
 
-Will be processed if time permits and if it adds something meaningful to the demo.
+## CSVDriver and per-object controller
 
-## CSVDriver MonoBehaviour
+`CSVDriver` parses the file and orchestrates playback. `CSVObjectController` drives a single shape instance from a slice of CSV rows (position, state, alpha fade). See `09_CSVAnalysis.md` for the full design — including the long-data object-pool mode, world-scale parameter, and state-4 fade-out behavior.
 
 ```csharp
 public class CSVDriver : MonoBehaviour {
     public TextAsset shortDataCsv;
     public TextAsset longDataCsv;
-    public StateController stateController;
+
+    public GameObject shapeMorphPrefab;   // PlanA or PlanB variant per scene
+    public Transform  worldRoot;
 
     public enum DataSource { Short, Long, None }
-    public DataSource activeSource = DataSource.Short;
-
-    // Parses the CSV and produces a List<StateEvent> { time, targetState, transitionDuration }
-    // Playback loop advances through events based on Time.time
+    public DataSource activeSource       = DataSource.Short;
+    public float      playbackRate       = 1.0f;
+    public bool       loop               = true;
+    public float      transitionDuration = 1.0f;
+    public float      worldScale         = 1.0f;   // 0.05 for VR
 }
 ```
 
 ### Playback model
 
-The driver maintains a `playheadTime` that advances with `Time.deltaTime`. When `playheadTime` crosses an event time, it calls `stateController.GoToState(event.targetState, event.transitionDuration)`.
+The driver maintains a `playheadTime` that advances with `Time.deltaTime * playbackRate`.
 
-Looping: when `playheadTime` exceeds the last event time + some hold, reset to 0 and re-trigger from the beginning. This makes the demo run continuously for evaluation.
+- **Short mode:** one persistent shape object; each frame, find the CSV row at the current playhead, lerp position between adjacent rows, and forward the state value to `StateController.GoToState` when it changes.
+- **Long mode:** maintain a pool of shape objects keyed by `object_id`. Spawn on an object's first frame, despawn after its last. Each active object runs its own `CSVObjectController` against its CSV slice.
+
+Looping: when `playheadTime` exceeds the last frame, reset to 0 and replay. The demo runs continuously for evaluation.
 
 ### UI
 
@@ -131,14 +126,3 @@ Minimal in-scene UI:
 - Key `P` toggles pause
 - Key `Space` switches between Plan A and Plan B scenes
 - Key `R` resets the playhead
-
-## Adapting to the actual CSVs
-
-When the real CSV files arrive, the CSVDriver parser will be updated to match. The state controller and shaders are independent of CSV format — they consume `(state, time)` events.
-
-If the CSV contains values that don't map cleanly to discrete states (e.g. a continuous numeric value), it would route into:
-- A direct value mapping (e.g. value × 4 → state index)
-- A threshold mapping (e.g. >0.75 → state 4)
-- Or driving a continuous shape parameter directly (e.g. a fractional "morph progress" instead of discrete states)
-
-Will be decided once the CSVs are visible.
