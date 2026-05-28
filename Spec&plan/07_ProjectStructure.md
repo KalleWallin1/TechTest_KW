@@ -33,42 +33,48 @@ TechTest_KW/                            ← repo root
 ├── TechnicalTask_KW_2026/              ← The Unity project root
 │   ├── Assets/
 │   │   ├── Scenes/
+│   │   │   ├── MainScene.unity                  (currently the active scene — staging area)
 │   │   │   ├── PlanA_GeometricMorph.unity
 │   │   │   └── PlanB_SDFMorph.unity
+│   │   ├── MainWidget/                          (the shape + number widget assets)
+│   │   │   ├── MainWidgetMaterial.mat           (URP/Unlit for now; will switch to ShapeMorph shader)
+│   │   │   └── Textures/
+│   │   │       ├── Triangle.png                 (reference / Plan A optional alpha mask)
+│   │   │       ├── Hexagon.png
+│   │   │       ├── Circle.png
+│   │   │       ├── Square.png                   (added — State 4, replaces star)
+│   │   │       └── RotationTexture.png          (digit strip "1 2 3 4")
+│   │   ├── SourceData/                          (CSV TextAssets, referenced from CSVDriver inspector)
+│   │   │   ├── Short_Data_Animation_Match.csv
+│   │   │   └── Long_Data_Free_Form.csv          (optional per brief)
 │   │   ├── Scripts/
 │   │   │   ├── StateController.cs
-│   │   │   ├── CSVDriver.cs                  (parses CSV, drives playback)
-│   │   │   ├── CSVObjectController.cs        (per-object position + state + alpha fade)
-│   │   │   ├── CSVObjectPool.cs              (long-data multi-object spawn/despawn)
-│   │   │   ├── MorphMeshGenerator.cs         (Plan A — mesh with baked morph targets)
-│   │   │   ├── ShapeMorphController.cs       (Plan A — material driver)
-│   │   │   ├── ShapeMorphSDFController.cs    (Plan B — material driver)
-│   │   │   ├── NumberStripController.cs      (shared — UV scroll on digit quad)
-│   │   │   ├── SceneSwitcher.cs              (Space toggles between scenes)
-│   │   │   └── UIPanel.cs                    (minimal debug UI)
+│   │   │   ├── CSVDriver.cs                     (parses CSV TextAsset, drives playback)
+│   │   │   ├── CSVObjectController.cs           (per-object position + state + alpha fade)
+│   │   │   ├── CSVObjectPool.cs                 (long-data multi-object spawn/despawn)
+│   │   │   ├── MorphMeshGenerator.cs            (Plan A — mesh with baked morph targets)
+│   │   │   ├── ShapeMorphController.cs          (Plan A — material driver)
+│   │   │   ├── ShapeMorphSDFController.cs       (Plan B — material driver)
+│   │   │   ├── NumberStripController.cs         (shared — UV scroll on digit quad)
+│   │   │   ├── SceneSwitcher.cs                 (Space toggles between scenes)
+│   │   │   └── UIPanel.cs                       (minimal debug UI)
 │   │   ├── Shaders/
 │   │   │   ├── ShapeMorphGeometric.shader
 │   │   │   ├── ShapeMorphSDF.shader
 │   │   │   └── NumberStrip.shader
-│   │   ├── Materials/
-│   │   │   ├── ShapeMorph_Geometric.mat
-│   │   │   ├── ShapeMorph_SDF.mat
-│   │   │   └── NumberStrip.mat
-│   │   ├── Textures/
-│   │   │   ├── Triangle.png             (reference / Plan A optional)
-│   │   │   ├── Hexagon.png
-│   │   │   ├── Circle.png
-│   │   │   └── RotationTexture.png      (used by both plans for the number layer)
 │   │   ├── Prefabs/
 │   │   │   ├── ShapeMorph_PlanA.prefab
 │   │   │   └── ShapeMorph_PlanB.prefab
-│   │   ├── StreamingAssets/
-│   │   │   ├── Short_Data_Animation_Match.csv
-│   │   │   └── Long_Data_Free_Form.csv          (optional per brief)
+│   │   ├── Sources/                             (empty placeholder — TBD use)
 │   │   ├── Editor/
-│   │   │   └── BuildScript.cs           (Tools > Build Windows menu command)
-│   │   └── Settings/
-│   │       └── URP-PipelineAsset.asset
+│   │   │   └── BuildScript.cs                   (Tools > Build Windows menu command)
+│   │   ├── Settings/
+│   │   │   ├── PC_RPAsset.asset / PC_Renderer.asset
+│   │   │   ├── Mobile_RPAsset.asset / Mobile_Renderer.asset
+│   │   │   ├── DefaultVolumeProfile.asset
+│   │   │   ├── SampleSceneProfile.asset
+│   │   │   └── UniversalRenderPipelineGlobalSettings.asset
+│   │   └── InputSystem_Actions.inputactions     (Unity 6 default; can be removed if unused)
 │   ├── Packages/
 │   ├── ProjectSettings/
 │   ├── Library/                        (gitignored — auto-generated)
@@ -86,7 +92,7 @@ TechTest_KW/                            ← repo root
 
 ### Notes on out-of-Unity folders
 
-- **`TaskSourceFiles/`** is the unmodified material handed over by Rightware. Anything from here that ends up in the build is *copied* into `TechnicalTask_KW_2026/Assets/Textures/` or `Assets/StreamingAssets/`. This keeps a clean separation between "what was given" and "what was authored".
+- **`TaskSourceFiles/`** is the unmodified material handed over by Rightware. Anything from here that ends up in the build is *copied* into `TechnicalTask_KW_2026/Assets/MainWidget/Textures/` (images) or `Assets/SourceData/` (CSVs). This keeps a clean separation between "what was given" and "what was authored". Note: CSVs live in `SourceData/` (loaded as `TextAsset` via inspector reference), not `StreamingAssets/` — chosen for simpler runtime access since the data is always shipped with the build.
 - **`SourceAsset/`** holds DCC working files (`.blend`, `.max`) — original source for any modeled or UV-prepared geometry that gets exported into the Unity project. These are kept outside the Unity project to avoid Unity attempting to import them, and to keep `.blend1` backup churn out of the project. If a `.fbx` is exported from one of these for use in Plan A, the `.fbx` goes into `Assets/Models/` and the `.blend`/`.max` stays here.
 - The DCC source files and this folder layout are also useful raw material for the `ProcessDescription.md` write-up, which can reference the modeling/baking pipeline as well as the in-engine work.
 

@@ -8,7 +8,7 @@ The state machine is shared between Plan A and Plan B. The same script drives ei
 public class StateController : MonoBehaviour {
     [System.Serializable]
     public struct StatePreset {
-        public int      shapeIndex;     // 0=tri, 1=hex, 2=circle, 3=star
+        public int      shapeIndex;     // 0=tri, 1=hex, 2=circle, 3=square
         public int      digitIndex;     // 0=1, 1=2, 2=3, 3=4
         public Color    tint;
         public float    rotationDegrees;  // Z rotation at rest

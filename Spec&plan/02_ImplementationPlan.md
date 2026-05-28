@@ -19,15 +19,15 @@ The brief states "Maximum of 100 triangles in the scene, the fewer the better." 
 ### Plan A — Geometric vertex morph
 
 - One ring mesh, ~32 segments, two rings of vertices (inner + outer) forming a thin outline stroke
-- Each vertex carries baked positions for all morph targets (triangle, hexagon, circle, star) as vertex attributes
+- Each vertex carries baked positions for all morph targets (triangle, hexagon, circle, square) as vertex attributes
 - Vertex shader lerps between two targets based on `currentState` / `nextState` / `transitionProgress`
 - **64 triangles** for the shape + 2 for the digit quad = **66 triangles total**
 
 ### Plan B — SDF (signed distance field) shader
 
 - One quad (2 tris) for the shape, with a fragment shader that computes the distance to a parametric polygon
-- Shape parameters (vertex count N, corner radius, star inset) lerp continuously
-- True circle, exact star, resolution-independent
+- Shape parameters (vertex count N, corner radius) lerp continuously
+- True circle, exact regular polygons at any N, resolution-independent
 - **2 triangles** for the shape + 2 for the digit quad = **4 triangles total**
 
 ## Recommendation
@@ -49,7 +49,7 @@ Both scenes share the same `StateController` API and CSV driver, so the differen
 | Vertex shader cost | Low (per-vertex lerp) | Minimal |
 | Fragment shader cost | Minimal (alpha mask) | Higher (distance math + smoothstep) |
 | Circle quality | 32-gon approximation | Mathematically exact |
-| Star quality | Vertex-baked, exact for fixed N | Mathematically exact |
+| Square (State 4) quality | Vertex-baked, exact at N=4 | Mathematically exact (regular polygon, N=4) |
 | Resolution independence | No — pixel artifacts at high zoom | Yes — crisp at any zoom |
 | Stroke width control | Set at mesh-generation time | Live shader parameter |
 | Extending with more shapes | Add another vertex attribute, rebake | Add another SDF branch in shader |

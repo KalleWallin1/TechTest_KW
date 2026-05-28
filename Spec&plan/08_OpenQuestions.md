@@ -16,7 +16,7 @@ Things that need to be resolved during implementation or confirmed before final 
 
 ## Potential issues to validate
 
-- **Plan A: stroke width at the star points** — at sharp angles, the inner ring vertex can cross the outer ring if the stroke is too wide, producing self-intersection artifacts. Either limit stroke width or apply a per-corner miter-clamp at mesh generation time.
+- **Plan A: stroke width at sharp corners** — at the triangle's 60° corners (the sharpest angle in the four-shape set, now that the star is replaced by a square), the inner ring vertex can cross the outer ring if the stroke is too wide. Either limit stroke width to a safe value or apply a per-corner miter-clamp at mesh generation time. The square's 90° corners are not problematic. The swap from star to square materially shrinks this risk — the star's ~36° inner-valley angles would have been the worst case.
 - **Plan B: fractional N polygon SDF** — needs visual validation that the in-between shapes (e.g. N=4.5) look reasonable during the transition. If they look weird, switch to the distance-lerp approach (Approach 2 from `04_TechnicalSpec_PlanB_SDF.md`).
 - **Plan B: rotating SDF inside a non-rotated quad** — at large rotation angles the shape might clip if the quad is sized too tight. Quad size needs to accommodate the diagonal of the largest shape's bounding box. Solution: size the quad to `sqrt(2) × shape_diameter`.
 - **Linear vs gamma color space** — make sure the tint colors look the same as the reference. The sampled RGB values from the reference are in sRGB; they need to be set as sRGB on the materials. URP defaults to linear which handles this if the colors are entered correctly.
@@ -32,7 +32,7 @@ Things that need to be resolved during implementation or confirmed before final 
 
 - Engine: Unity 6 (6000.3.16f1), URP
 - Two scenes: Plan A geometric, Plan B SDF
-- State 4: 5-pointed star with pulsing breathing animation, blue/cyan color
+- State 4: square (regular polygon at N=4) with pulsing breathing animation, blue/cyan color. Star was considered earlier and rejected for implementation-budget reasons — see spec 06.
 - Single Windows build with scene switcher
 - Background: `#444444`
 - Number digits as horizontal UV-scroll on the RotationTexture

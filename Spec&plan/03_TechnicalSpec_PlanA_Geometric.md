@@ -14,7 +14,7 @@ The shape is a single procedurally generated ring mesh. Each vertex carries bake
 - Vertex count: `2N = 64`
 - Triangle count: `2N = 64` (each quad = 2 triangles)
 
-`N` is a parameter and can be reduced if needed for budget. At `N = 32` the circle is smooth enough to be visually convincing and the star has clean enough points. At `N = 24` it would be 48 tris and still acceptable.
+`N` is a parameter and can be reduced if needed for budget. At `N = 32` the circle is smooth enough to be visually convincing and all four polygon corners (triangle, square, hexagon) land cleanly on the ring sampling. At `N = 24` it would be 48 tris and still acceptable — `N = 24` is divisible by 3, 4, and 6, so corners still align exactly on sampled vertices.
 
 ## Vertex attributes (baked at mesh generation)
 
@@ -25,7 +25,7 @@ The shape is a single procedurally generated ring mesh. Each vertex carries bake
 | `TEXCOORD1` (float2) | Triangle target position |
 | `TEXCOORD2` (float2) | Hexagon target position |
 | `TEXCOORD3` (float2) | Circle target position |
-| `TEXCOORD4` (float2) | Star target position |
+| `TEXCOORD4` (float2) | Square target position |
 | `COLOR` | 1.0 for outer ring verts, 0.0 for inner ring verts (used to extrude the stroke in the vertex shader, optional) |
 
 Storing all four targets as vertex attributes means the shader doesn't need to read from constant buffers indexed by state — the lerp math is straight per-vertex linear algebra. Memory overhead is trivial at this triangle count.
@@ -46,9 +46,10 @@ For each segment index `i ∈ [0, N)`, parameter `t = i / N` (range `[0, 1)`):
 - `(cos(2π·t), sin(2π·t)) * R`
 - The simplest target
 
-### Star (5-pointed)
-- Alternate between outer radius `R` and inner radius `R * 0.5` over 10 vertices (5 outer points, 5 inner valleys)
-- Sample at parameter `t` along the star's perimeter (with optional rounded corners for visual softness)
+### Square (N=4 corners)
+- Same approach as triangle/hexagon: 4 corner arcs and 4 straight edges
+- Corner radius matches the other polygons (≈ 4% of bounding radius) for visual consistency
+- Sample at parameter `t` along the perimeter — straightforward because the topology matches the other regular-polygon targets
 
 For each of these, the same `i → position` mapping is used per ring, with the outer ring at `R+stroke/2` and the inner ring at `R-stroke/2` along the **outward normal of the shape at that point**. So the stroke follows the shape's contour rather than being a simple radial offset (which would distort at sharp corners).
 
@@ -59,7 +60,7 @@ For each of these, the same `i → position` mapping is used per ring, with the 
 ```hlsl
 Properties {
     _Color ("Tint", Color) = (1,1,1,1)
-    _MorphCurrent ("Current Shape Index", Range(0,3)) = 0   // 0=tri, 1=hex, 2=circle, 3=star
+    _MorphCurrent ("Current Shape Index", Range(0,3)) = 0   // 0=tri, 1=hex, 2=circle, 3=square
     _MorphNext ("Next Shape Index", Range(0,3)) = 0
     _MorphT ("Transition Progress", Range(0,1)) = 0          // 0=current, 1=next
 }
@@ -68,16 +69,16 @@ Properties {
 Vertex shader logic (pseudo-HLSL):
 
 ```hlsl
-float2 GetTargetPos(int idx, float2 tri, float2 hex, float2 cir, float2 sta) {
+float2 GetTargetPos(int idx, float2 tri, float2 hex, float2 cir, float2 sqr) {
     if (idx == 0) return tri;
     if (idx == 1) return hex;
     if (idx == 2) return cir;
-    return sta;
+    return sqr;
 }
 
 v2f vert(appdata v) {
-    float2 a = GetTargetPos((int)_MorphCurrent, v.tri, v.hex, v.cir, v.sta);
-    float2 b = GetTargetPos((int)_MorphNext,    v.tri, v.hex, v.cir, v.sta);
+    float2 a = GetTargetPos((int)_MorphCurrent, v.tri, v.hex, v.cir, v.sqr);
+    float2 b = GetTargetPos((int)_MorphNext,    v.tri, v.hex, v.cir, v.sqr);
     float t = smoothstep(0, 1, _MorphT);  // smooth easing
     float2 p = lerp(a, b, t);
     o.pos = UnityObjectToClipPos(float4(p, 0, 1));

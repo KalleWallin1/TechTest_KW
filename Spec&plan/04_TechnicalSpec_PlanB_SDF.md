@@ -2,7 +2,7 @@
 
 ## Overview
 
-The shape is rendered on a single quad (2 triangles). The fragment shader computes the signed distance to a parametric shape and shades a thin outline where the distance is close to zero. Shape parameters (vertex count, corner radius, star inset) lerp continuously, producing a mathematically exact morph between any pair of states.
+The shape is rendered on a single quad (2 triangles). The fragment shader computes the signed distance to a parametric shape and shades a thin outline where the distance is close to zero. All four states (triangle, hexagon, circle, square) are on the same regular-polygon continuum — only `N` (vertex count) and `cornerRadius` change between them — so a single SDF function handles every shape and every transition with a clean parameter lerp.
 
 ## Mesh
 
@@ -11,30 +11,28 @@ The shape is rendered on a single quad (2 triangles). The fragment shader comput
 
 ## Shape parameterization
 
-All four shapes are expressed by three parameters:
+All four shapes are expressed by **two parameters** — no special-case SDFs needed since the square is also a regular polygon:
 
-| Shape | N (vertex count) | cornerRadius | starInset |
-|---|---|---|---|
-| Triangle | 3 | 0.04 | 0.0 |
-| Hexagon | 6 | 0.04 | 0.0 |
-| Circle | 6 (or any N) | 1.0 (max, fully rounded) | 0.0 |
-| Star | 5 | 0.04 | 0.5 |
+| Shape | N (vertex count) | cornerRadius |
+|---|---|---|
+| Triangle | 3 | 0.04 |
+| Square   | 4 | 0.04 |
+| Hexagon  | 6 | 0.04 |
+| Circle   | any N (e.g. 6) | 1.0 (max — corners merge into a smooth circle) |
 
 Where:
-- **N** = number of corners/points (lerped, fractional values produce in-between polygons)
+- **N** = number of corners (lerped; fractional values produce in-between polygons during a transition)
 - **cornerRadius** = `[0, 1]`, how rounded the corners are; at `1.0` corners merge into a circle
-- **starInset** = `[0, 1]`, how deep the alternating "valley" radius is between points; `0` = regular polygon, `>0` = star shape
 
-Fractional N values are tricky — a clean lerp from N=3 to N=6 isn't well-defined for a true regular polygon SDF. Two valid approaches:
+The decision to use a square as State 4 (instead of a 5-pointed star) collapses what would have been two separate SDF families (regular polygon + star) into a single regular-polygon SDF. This is a meaningful simplification: no `starInset` parameter, no `sdStar5` function, no Approach-2 distance-lerp for cross-family transitions. Every state ↔ every state transition is a smooth `(N, cornerRadius)` lerp.
 
-### Approach 1: Smooth fractional polygon SDF (Inigo Quilez's polygon SDF)
+### Regular polygon SDF (Inigo Quilez)
 
 ```hlsl
 // Regular polygon SDF, smooth in N
 float sdRegularPolygon(float2 p, float r, float N) {
     float an = 3.141592 / N;
-    float halfAn = an;
-    float2 q = float2(abs(p.x), p.y);  // mirror
+    float2 q = float2(abs(p.x), p.y);   // mirror over y-axis
     float a = atan2(q.x, q.y);
     a = mod(a, 2.0 * an) - an;
     float d = length(q) * cos(a) - r * cos(an);
@@ -42,37 +40,11 @@ float sdRegularPolygon(float2 p, float r, float N) {
 }
 ```
 
-This is continuous in N but the geometry "rotates" as N changes (because the angular spacing changes). To avoid the rotation artifact we apply an explicit Z-rotation to the sample point to keep the polygon's "top corner up" through the morph.
+### Fractional N behavior
 
-### Approach 2: Two SDFs, distance-lerp
+When N is between two integer values (e.g. 3.5 during a triangle→square transition), the SDF still produces a continuous closed shape — it just doesn't correspond to a "real" polygon. The shape visually morphs smoothly: corners migrate around the perimeter, growing in count, with the radial frequency increasing as N rises. This reads as a natural morph.
 
-Compute `sdfA` (current shape) and `sdfB` (next shape) separately, then `lerp(sdfA, sdfB, t)`. This produces a smooth visual morph between any two shapes even if their topology differs (polygon vs. star).
-
-We use **Approach 2** as the primary technique because it cleanly handles the star case (where the "starInset" parameter doesn't really lerp meaningfully through 0 — it's a topological discontinuity). Approach 1 is used when both endpoints are regular polygons.
-
-In practice:
-- **Triangle ↔ Hexagon ↔ Circle:** smooth lerp of (N, cornerRadius) — these all share the regular-polygon SDF, so Approach 1 works
-- **Anything ↔ Star:** distance-lerp between the rounded-polygon SDF and the star SDF — Approach 2
-
-## Star SDF
-
-Standard 5-pointed star SDF (also from Inigo Quilez's public domain shader library):
-
-```hlsl
-float sdStar5(float2 p, float r, float inset) {
-    // 5-pointed star with outer radius r, inner valley at r*(1-inset)
-    const float2 k1 = float2(0.809016994, -0.587785252);
-    const float2 k2 = float2(-0.809016994, -0.587785252);
-    p.x = abs(p.x);
-    p -= 2.0 * max(dot(k1, p), 0.0) * k1;
-    p -= 2.0 * max(dot(k2, p), 0.0) * k2;
-    p.x = abs(p.x);
-    p.y -= r;
-    float2 ba = float2(-inset * 0.5, inset) * r;
-    float h = clamp(dot(p, ba) / dot(ba, ba), 0.0, 1.0);
-    return length(p - ba * h) * sign(p.y * ba.x - p.x * ba.y);
-}
-```
+The polygon's "top corner up" orientation rotates slightly as N changes (because the angular spacing depends on N). To keep the shape stable through the morph, an explicit Z-rotation is applied to the sample point that compensates — effectively `rotate(uv, π/N)` so a flat side sits at the bottom regardless of N.
 
 ## Outline rendering
 
@@ -93,7 +65,7 @@ This produces a crisp, anti-aliased outline at any zoom level. `fwidth(d)` gives
 Properties {
     _Color ("Tint", Color) = (1,1,1,1)
     _StrokeWidth ("Stroke Width", Range(0.005, 0.1)) = 0.02
-    _MorphCurrent ("Current Shape", Range(0,3)) = 0     // 0=tri, 1=hex, 2=circle, 3=star
+    _MorphCurrent ("Current Shape", Range(0,3)) = 0     // 0=tri, 1=hex, 2=circle, 3=square
     _MorphNext ("Next Shape", Range(0,3)) = 0
     _MorphT ("Transition T", Range(0,1)) = 0
     _PulseAmount ("Pulse Amount", Range(0,1)) = 0       // for State 4 breathing effect
@@ -130,7 +102,8 @@ float2 RotateUV(float2 uv, float angleRad) {
 ## Why this is the right answer to the brief
 
 - **4 triangles** is dramatic improvement over Plan A's 66 — directly maximizes the "fewer the better" criterion
-- **Mathematically exact** — true circles, exact stars, no polygon approximation
+- **Mathematically exact** — true circles, exact regular polygons at any integer N, no jagged approximation
 - **Resolution-independent** — looks crisp at any zoom (relevant for VR)
 - **State 4 pulsing effect is free** — just modulate `_StrokeWidth` in the shader, no extra geometry
+- **Single SDF family** covers all four states — the square decision means there is no special-case shape, every transition is one continuous parameter lerp
 - Shows understanding that "3D elements" doesn't have to mean "geometrically detailed meshes" — the cleverness is in the shader, which is core technical-artist work

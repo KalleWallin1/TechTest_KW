@@ -76,7 +76,7 @@ This is exactly the kind of "exit / deactivation / end-of-life" code that real-w
 
 ### Implications for the State 4 design
 
-The pentagram + pulsing effect from `06_State4_Design.md` reads as a "farewell" animation in this context — the object's final visual identity before it vanishes. To strengthen the read:
+The square + pulsing effect from `06_State4_Design.md` reads as a "farewell" animation in this context — the object's final visual identity before it vanishes. To strengthen the read:
 - During state 4, optionally fade alpha to zero across the duration of the state-4 segment, so the object visually dissolves out of the scene as it ends
 - The last known position can be held (since we have no XYZ during state 4) — the object stays in place and breathes out
 - Alternatively: shrink the scale toward zero alongside the pulse, so the breath visually "exhales"
@@ -143,7 +143,7 @@ A `worldScale` parameter on `CSVDriver` controls this. Default values: `1.0` for
 ### State 4 fade-out behavior
 
 When an object's state transitions to 4:
-- The StateController switches to state 4 (star + pulse + blue tint)
+- The StateController switches to state 4 (square + pulse + blue tint)
 - An additional `lifeRemaining` is computed: count how many CSV rows of state 4 the object has left
 - Alpha fades from 1 → 0 over the duration of the state-4 window
 - When the last state-4 row passes, the object is removed (or pooled)
@@ -160,7 +160,7 @@ Three places empty XYZ can occur:
 ## Decisions locked from this analysis
 
 1. **CSV state value is target state, not visible state.** The visible animation interpolates toward it via `StateController.GoToState`.
-2. **State 4 is terminal / exit / leaving-scene.** Pentagram + pulse design from spec 06 is unchanged; alpha fade-out added.
+2. **State 4 is terminal / exit / leaving-scene.** Square + pulse design from spec 06 (square chosen over the earlier pentagram for implementation-budget reasons); alpha fade-out added on top.
 3. **Empty XYZ = hold last position.** Never tries to extrapolate or move to origin.
 4. **Long data is multi-object** with spawn/despawn keyed on `object_id` lifespan. Object pool keeps allocation cost low.
 5. **World scale** is a `CSVDriver` parameter, defaulting to suit non-VR; smaller value for VR.
@@ -185,7 +185,7 @@ Add:
 - `Assets/Scripts/CSVDriver.cs` (updated to support both modes)
 - `Assets/Scripts/CSVObjectPool.cs` (object pool for long-data multi-object spawning)
 - `Assets/Scripts/CSVObjectController.cs` (drives a single shape object from a CSV stream — position interpolation, state forwarding, alpha fade on state 4)
-- `Assets/StreamingAssets/Short_Data_Animation_Match.csv`
-- `Assets/StreamingAssets/Long_Data_Free_Form.csv`
+- `Assets/SourceData/Short_Data_Animation_Match.csv` (imported as `TextAsset`)
+- `Assets/SourceData/Long_Data_Free_Form.csv` (imported as `TextAsset`)
 
 Open question now resolved (from spec 08): CSV format is known. The previous "TBD" entries about CSV layout are closed.
