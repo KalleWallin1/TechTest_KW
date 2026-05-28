@@ -25,8 +25,6 @@ namespace TechnicalTask
         private static readonly int PulseAmountId = Shader.PropertyToID("_PulseAmount");
 
         private MaterialPropertyBlock mpb;
-        private float baseYRotation;
-        private int   lastSeenCurrent = -1;
 
         private void Awake()
         {
@@ -53,20 +51,16 @@ namespace TechnicalTask
             }
             else
             {
-                if (lastSeenCurrent < 0)
-                {
-                    lastSeenCurrent = stateController.CurrentState;
-                    baseYRotation   = initialYRotation + stateController.CurrentState * rotationPerTransition;
-                }
-                if (stateController.CurrentState != lastSeenCurrent)
-                {
-                    baseYRotation  += rotationPerTransition;
-                    lastSeenCurrent = stateController.CurrentState;
-                }
+                // Rotation interpolates from current digit to next digit using RotationProgress,
+                // which CSVDriver computes from each transition's own cubeStartFrame/cubeEndFrame.
+                // Cube timing is independent of tint and morph timing.
+                int   currentDigit = stateController.CurrentState;
+                int   nextDigit    = stateController.NextState;
+                float t            = stateController.RotationProgress;
 
-                yRotation = stateController.IsTransitioning
-                    ? baseYRotation + rotationPerTransition * stateController.TransitionT
-                    : baseYRotation;
+                yRotation = initialYRotation
+                          + currentDigit * rotationPerTransition
+                          + (nextDigit - currentDigit) * rotationPerTransition * t;
 
                 tint  = stateController.BlendedTint;
                 pulse = stateController.BlendedPulseAmount;

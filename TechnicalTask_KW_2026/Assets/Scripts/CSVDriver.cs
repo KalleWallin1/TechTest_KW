@@ -3,6 +3,11 @@ using UnityEngine;
 
 namespace TechnicalTask
 {
+    // Parses the short CSV (frame, object_id, x, y, z, state) and drives StateController
+    // through each state change at the CSV-specified frame. The morph timing (when each
+    // shape morph begins/ends) is configured per transition via the Transition Timings
+    // list. Free-form transform animation (rotation/scale/position) is expected to be
+    // authored separately in a Unity AnimationClip and sampled via transformAnimationClip.
     public class CSVDriver : MonoBehaviour
     {
         [System.Serializable]
@@ -10,39 +15,39 @@ namespace TechnicalTask
         {
             [Tooltip("Free-text label for the inspector — has no effect on behavior.")]
             public string label;
-
-            [Header("Which transition this entry configures")]
             [Tooltip("Source state, 0-based (0 = State 1 triangle).")]
             public int fromState;
             [Tooltip("Destination state, 0-based.")]
             public int toState;
 
-            [Header("Frame timing (read off the reference video)")]
-            [Tooltip("CSV frame where the shape's rotation begins.")]
-            public int rotationStartFrame;
-            [Tooltip("CSV frame where the rotation finishes.")]
-            public int rotationEndFrame;
+            [Header("Tint window — drives tint crossfade and pulse amount.")]
+            [Tooltip("CSV frame where the tint crossfade begins.")]
+            public int tintStartFrame;
+            [Tooltip("CSV frame where the tint crossfade finishes.")]
+            public int tintEndFrame;
+
+            [Header("Cube window — drives the digit cube Y rotation.")]
+            [Tooltip("CSV frame where the number cube begins rotating.")]
+            public int cubeStartFrame;
+            [Tooltip("CSV frame where the number cube finishes rotating.")]
+            public int cubeEndFrame;
+
+            [Header("Morph window — controls the shape morph progress 0→1.")]
             [Tooltip("CSV frame where the shape morph begins.")]
             public int morphStartFrame;
-            [Tooltip("CSV frame where the morph finishes.")]
+            [Tooltip("CSV frame where the shape morph finishes.")]
             public int morphEndFrame;
-
-            [Header("Animation curves — the Y value IS the output (no multipliers).")]
-            [Tooltip("Output: degrees rotated this transition. Input: 0..1 over the rotation window. Author the last key's Y to set the total rotation (e.g. 180). Reshape to control timing.")]
-            public AnimationCurve rotationCurve = AnimationCurve.Linear(0f, 0f, 1f, 0f);
-            [Tooltip("Output: scale multiplier. 1 = no change. Input: 0..1 over the union window. Bell (0,1)→(0.5,1.15)→(1,1) for a grow-and-return.")]
-            public AnimationCurve scaleCurve    = AnimationCurve.Linear(0f, 1f, 1f, 1f);
-            [Tooltip("Output: X-position offset from baseline. Input: 0..1 over the union window. Default flat (no offset).")]
-            public AnimationCurve positionXCurve = AnimationCurve.Linear(0f, 0f, 1f, 0f);
-            [Tooltip("Output: Y-position offset from baseline. Input: 0..1 over the union window. Default flat (no offset).")]
-            public AnimationCurve positionYCurve = AnimationCurve.Linear(0f, 0f, 1f, 0f);
-            [Tooltip("Output: morph progress 0..1. Input: 0..1 over the morph window. Default ease-in-out.")]
-            public AnimationCurve morphCurve    = AnimationCurve.EaseInOut(0f, 0f, 1f, 1f);
+            [Tooltip("Morph progress curve. Input: 0..1 over the morph window. Output: 0..1 morph progress (0 = current shape, 1 = next shape).")]
+            public AnimationCurve morphCurve = AnimationCurve.EaseInOut(0f, 0f, 1f, 1f);
         }
 
         [Header("Source")]
         [SerializeField] private StateController stateController;
         [SerializeField] private TextAsset       shortDataCsv;
+
+        [Header("Transform animation — optional. If both are set, the clip is sampled at playheadTime each Update and applied to animationTarget's Transform.")]
+        [SerializeField] private AnimationClip   transformAnimationClip;
+        [SerializeField] private GameObject      animationTarget;
 
         [Header("Playback")]
         [SerializeField] private bool  autoStartOnAwake = true;
@@ -51,53 +56,37 @@ namespace TechnicalTask
         [Tooltip("Frame rate of the CSV. Short_Data_Animation_Match.csv was captured at 24 fps.")]
         [SerializeField] private float csvFrameRate     = 24f;
 
-        [Header("Per-transition controls — one labeled entry per state change. Edit the curves directly; the Y value of each curve IS the output value applied to the shape.")]
+        [Header("Per-transition morph timing — one entry per state pair. Fallback applies when no entry matches.")]
         [SerializeField] private List<TransitionTiming> transitionTimings = new List<TransitionTiming>
         {
             new TransitionTiming {
                 label = "1 → 2 (tri → hex)",
                 fromState = 0, toState = 1,
-                rotationStartFrame = 43, rotationEndFrame = 90, morphStartFrame = 90, morphEndFrame = 113,
-                rotationCurve  = AnimationCurve.EaseInOut(0f, 0f, 1f, 180f),
-                scaleCurve     = MakeBellCurve(1f, 1.15f),
-                positionXCurve = AnimationCurve.Linear(0f, 0f, 1f, 0f),
-                positionYCurve = AnimationCurve.Linear(0f, 0f, 1f, 0f),
-                morphCurve     = AnimationCurve.EaseInOut(0f, 0f, 1f, 1f),
+                tintStartFrame = 43, tintEndFrame = 63,
+                cubeStartFrame = 43, cubeEndFrame = 63,
+                morphStartFrame = 90, morphEndFrame = 113,
+                morphCurve = AnimationCurve.EaseInOut(0f, 0f, 1f, 1f),
             },
             new TransitionTiming {
                 label = "2 → 3 (hex → cir)",
                 fromState = 1, toState = 2,
-                rotationStartFrame = 181, rotationEndFrame = 181, morphStartFrame = 181, morphEndFrame = 205,
-                rotationCurve  = AnimationCurve.Linear(0f, 0f, 1f, 0f),
-                scaleCurve     = AnimationCurve.Linear(0f, 1f, 1f, 1f),
-                positionXCurve = AnimationCurve.Linear(0f, 0f, 1f, 0f),
-                positionYCurve = AnimationCurve.Linear(0f, 0f, 1f, 0f),
-                morphCurve     = AnimationCurve.EaseInOut(0f, 0f, 1f, 1f),
+                tintStartFrame = 181, tintEndFrame = 201,
+                cubeStartFrame = 181, cubeEndFrame = 201,
+                morphStartFrame = 181, morphEndFrame = 205,
+                morphCurve = AnimationCurve.EaseInOut(0f, 0f, 1f, 1f),
             },
             new TransitionTiming {
                 label = "3 → 4 (cir → sqr)",
                 fromState = 2, toState = 3,
-                rotationStartFrame = 231, rotationEndFrame = 250, morphStartFrame = 231, morphEndFrame = 250,
-                rotationCurve  = AnimationCurve.EaseInOut(0f, 0f, 1f, 180f),
-                scaleCurve     = MakeBellCurve(1f, 1.15f),
-                positionXCurve = AnimationCurve.Linear(0f, 0f, 1f, 0f),
-                positionYCurve = AnimationCurve.Linear(0f, 0f, 1f, 0f),
-                morphCurve     = AnimationCurve.EaseInOut(0f, 0f, 1f, 1f),
+                tintStartFrame = 231, tintEndFrame = 250,
+                cubeStartFrame = 231, cubeEndFrame = 250,
+                morphStartFrame = 231, morphEndFrame = 250,
+                morphCurve = AnimationCurve.EaseInOut(0f, 0f, 1f, 1f),
             },
         };
 
-        // Constructs an AnimationCurve with a smooth bell shape: starts at baseline, peaks
-        // at the given value at t=0.5, returns to baseline at t=1.
-        private static AnimationCurve MakeBellCurve(float baseline, float peak)
-        {
-            return new AnimationCurve(
-                new Keyframe(0f,   baseline, 0f, (peak - baseline) * Mathf.PI),
-                new Keyframe(0.5f, peak,     0f, 0f),
-                new Keyframe(1f,   baseline, -(peak - baseline) * Mathf.PI, 0f));
-        }
-
-        [Tooltip("Window length (frames) used for a transition with no entry in the table above.")]
-        [SerializeField] private int fallbackTransitionFrames = 30;
+        [Tooltip("Fallback morph window length (frames) used when a transition has no entry above.")]
+        [SerializeField] private int defaultTransitionFrames = 30;
 
         [Header("Debug scrub — pause playback and drag the slider for frame-by-frame comparison")]
         [SerializeField] private bool debugScrubMode;
@@ -134,14 +123,12 @@ namespace TechnicalTask
         {
             playing      = true;
             playheadTime = 0f;
-            // Video state is reconciled in Update.
         }
 
         [ContextMenu("Pause")]
         public void Pause()
         {
             playing = false;
-            // Video state is reconciled in Update.
         }
 
         [ContextMenu("Reparse CSV")]
@@ -149,10 +136,8 @@ namespace TechnicalTask
 
         private void Update()
         {
-            // 1) Update playheadTime from the active mode.
             if (debugScrubMode)
             {
-                // Scrubbing — playhead tracks the slider, so disabling scrub resumes from here.
                 playheadTime = Mathf.Max(0, debugScrubFrame - 1) / csvFrameRate;
             }
             else if (playing)
@@ -170,9 +155,13 @@ namespace TechnicalTask
             }
 
             float frame = playheadTime * csvFrameRate;
-
-            // Drive StateController.
             ApplyPoseForFrame(frame);
+
+            // Sample the user-authored transform animation, if assigned.
+            if (transformAnimationClip != null && animationTarget != null)
+            {
+                transformAnimationClip.SampleAnimation(animationTarget, playheadTime);
+            }
 
             debugIsPlaying     = playing;
             debugPlayheadFrame = frame;
@@ -180,8 +169,11 @@ namespace TechnicalTask
             debugEventCount    = events.Count;
         }
 
-        // Evaluates the pose for an arbitrary playhead frame and pushes it to StateController.
-        // Shared by playback and scrub.
+        // Finds the active state event for the given playhead frame, computes morph progress
+        // from the matching TransitionTiming entry's morphStartFrame/EndFrame/Curve (or
+        // a fallback smoothstep over `defaultTransitionFrames` if no entry matches), and
+        // pushes the pose to StateController. Rotation/scale/position offsets are always
+        // passed as zero/identity — those should be handled by an AnimationClip.
         private void ApplyPoseForFrame(float frame)
         {
             if (stateController == null || events.Count == 0) return;
@@ -199,52 +191,34 @@ namespace TechnicalTask
                 return;
             }
 
-            int prevState = events[activeEventIndex - 1].TargetState;
-            int thisState = events[activeEventIndex].TargetState;
+            int prevState  = events[activeEventIndex - 1].TargetState;
+            int thisState  = events[activeEventIndex].TargetState;
+            int eventFrame = events[activeEventIndex].Frame;
 
-            // Accumulated Z rotation at the start of this transition (sum of the final
-            // rotationCurve output of every prior transition).
-            float baseRotation = 0f;
-            for (int i = 1; i < activeEventIndex; i++)
-            {
-                var prior = FindTiming(events[i - 1].TargetState, events[i].TargetState);
-                if (prior != null && prior.rotationCurve != null && prior.rotationCurve.length > 0)
-                    baseRotation += prior.rotationCurve.Evaluate(1f);
-            }
-
-            float   rotProgress, morphProgress, generalT;
-            float   zRotation       = baseRotation;
-            float   scaleMultiplier = 1f;
-            Vector2 positionOffset  = Vector2.zero;
-
+            float morphT, generalT, cubeT;
             var timing = FindTiming(prevState, thisState);
             if (timing != null)
             {
-                float rotNormT   = InvLerp(timing.rotationStartFrame, timing.rotationEndFrame, frame);
-                float morphNormT = InvLerp(timing.morphStartFrame,    timing.morphEndFrame,    frame);
-                float genStart   = Mathf.Min(timing.rotationStartFrame, timing.morphStartFrame);
-                float genEnd     = Mathf.Max(timing.rotationEndFrame,   timing.morphEndFrame);
-                float genNormT   = InvLerp(genStart, genEnd, frame);
+                float morphNormT = InvLerp(timing.morphStartFrame, timing.morphEndFrame, frame);
+                morphT = (timing.morphCurve != null && timing.morphCurve.length > 0)
+                    ? timing.morphCurve.Evaluate(morphNormT)
+                    : Smoothstep(morphNormT);
 
-                // Curves output their values DIRECTLY now (degrees, multiplier, offset).
-                zRotation       = baseRotation + EvaluateCurveOrDefault(timing.rotationCurve, rotNormT, 0f);
-                morphProgress   = EvaluateCurveOrSmoothstep(timing.morphCurve, morphNormT);
-                scaleMultiplier = EvaluateCurveOrDefault(timing.scaleCurve,     genNormT, 1f);
-                float posX      = EvaluateCurveOrDefault(timing.positionXCurve, genNormT, 0f);
-                float posY      = EvaluateCurveOrDefault(timing.positionYCurve, genNormT, 0f);
-                positionOffset  = new Vector2(posX, posY);
-
-                rotProgress = rotNormT;
-                generalT    = Smoothstep(genNormT);
+                // Three independent timing windows now:
+                //   generalT — tint crossfade and pulse amount
+                //   cubeT    — digit cube Y rotation (NumberCubeController reads RotationProgress)
+                //   morphT   — shape morph
+                generalT = Smoothstep(InvLerp(timing.tintStartFrame, timing.tintEndFrame, frame));
+                cubeT    = Smoothstep(InvLerp(timing.cubeStartFrame, timing.cubeEndFrame, frame));
             }
             else
             {
-                int start = events[activeEventIndex].Frame;
-                float t = Smoothstep(InvLerp(start, start + fallbackTransitionFrames, frame));
-                rotProgress = morphProgress = generalT = t;
+                morphT   = Smoothstep(InvLerp(eventFrame, eventFrame + defaultTransitionFrames, frame));
+                generalT = morphT;
+                cubeT    = morphT;
             }
 
-            stateController.SetPose(prevState, thisState, generalT, rotProgress, morphProgress, zRotation, scaleMultiplier, positionOffset);
+            stateController.SetPose(prevState, thisState, generalT, cubeT, morphT, 0f, 1f, Vector2.zero);
         }
 
         private TransitionTiming FindTiming(int from, int to)
@@ -266,23 +240,6 @@ namespace TechnicalTask
         {
             t = Mathf.Clamp01(t);
             return t * t * (3f - 2f * t);
-        }
-
-        // Evaluates a curve at t, returning the given default if the curve is null or empty.
-        // Used for rotation/scale/position curves where the curve outputs the actual value
-        // (degrees, multiplier, offset) and missing curves should fall back to "no effect".
-        private static float EvaluateCurveOrDefault(AnimationCurve curve, float t, float defaultValue)
-        {
-            if (curve == null || curve.length == 0) return defaultValue;
-            return curve.Evaluate(t);
-        }
-
-        // Evaluates a curve at t, falling back to smoothstep — used for morph progress,
-        // which still operates as a 0..1 normalized progress curve.
-        private static float EvaluateCurveOrSmoothstep(AnimationCurve curve, float t)
-        {
-            if (curve == null || curve.length == 0) return Smoothstep(t);
-            return curve.Evaluate(t);
         }
 
         private void ParseCsv()
