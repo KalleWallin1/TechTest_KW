@@ -108,6 +108,7 @@ namespace TechnicalTask
                 next       = stateController.NextShapeIndex;
                 t          = stateController.MorphT;
                 tint       = stateController.BlendedTint;
+                tint.a    *= stateController.BlendedAlpha;
                 rotDegrees = stateController.BlendedZRotationDegrees;
                 pulse      = stateController.BlendedPulseAmount;
             }

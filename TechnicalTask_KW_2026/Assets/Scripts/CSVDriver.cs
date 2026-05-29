@@ -49,6 +49,24 @@ namespace TechnicalTask
         [SerializeField] private AnimationClip   transformAnimationClip;
         [SerializeField] private GameObject      animationTarget;
 
+        [Header("Fade-out — alpha ramps from 1 to 0 between these frames, then stays at 0. Use to dissolve the marker as it 'leaves the scene' (matches spec 09's reading of State 4 / empty XYZ).")]
+        [Tooltip("Frame where alpha begins fading from 1 → 0.")]
+        [SerializeField] private int fadeOutStartFrame = 231;
+        [Tooltip("Frame where alpha reaches 0. Beyond this frame the marker is fully invisible.")]
+        [SerializeField] private int fadeOutEndFrame   = 250;
+
+        [Header("Marker position — drives positionTarget's localPosition from the CSV XYZ columns. Empty XYZ rows hold the last known position (matches the 'leaving the scene' semantic from spec 09).")]
+        [Tooltip("Transform that gets positioned each frame from the CSV XYZ. Typically the MarkerRoot prefab containing the morph widget.")]
+        [SerializeField] private Transform positionTarget;
+        [Tooltip("Scale factor applied to the raw CSV XYZ. Short data ranges: X 0–23, Y -3–19, Z 1–82. Try 0.1–0.5 for a comfortable in-scene size.")]
+        [SerializeField] private float worldScale = 1f;
+        [Tooltip("Constant offset added AFTER scaling. Useful to center the trajectory in front of the camera or away from the player's head in VR.")]
+        [SerializeField] private Vector3 worldOffset = Vector3.zero;
+        [Tooltip("Component-wise multiply on the scaled position. Use (1,1,1) for no remap. Set (1,1,-1) to flip Z if the CSV uses a different handedness, etc.")]
+        [SerializeField] private Vector3 axisRemap = new Vector3(1f, 1f, 1f);
+        [Tooltip("If true, lerps the marker between adjacent CSV samples for sub-frame smoothness. If false, snaps to the nearest CSV frame (use to inspect raw data or if interpolation introduces visual artifacts).")]
+        [SerializeField] private bool interpolateBetweenFrames = true;
+
         [Header("Playback")]
         [SerializeField] private bool  autoStartOnAwake = true;
         [SerializeField] private bool  loop             = true;
@@ -104,7 +122,14 @@ namespace TechnicalTask
             public int TargetState;
         }
 
+        private struct PositionSample
+        {
+            public int Frame;
+            public Vector3 Position;
+        }
+
         private readonly List<StateEvent> events = new List<StateEvent>();
+        private readonly List<PositionSample> positionSamples = new List<PositionSample>();
         private float playheadTime;
         private int   clipFrames;
         private bool  playing;
@@ -156,6 +181,7 @@ namespace TechnicalTask
 
             float frame = playheadTime * csvFrameRate;
             ApplyPoseForFrame(frame);
+            ApplyMarkerPositionForFrame(frame);
 
             // Sample the user-authored transform animation, if assigned.
             if (transformAnimationClip != null && animationTarget != null)
@@ -187,7 +213,7 @@ namespace TechnicalTask
             if (activeEventIndex <= 0)
             {
                 int s = events[0].TargetState;
-                stateController.SetPose(s, s, 0f, 0f, 0f, 0f, 1f, Vector2.zero);
+                stateController.SetPose(s, s, 0f, 0f, 0f, 0f, 1f, Vector2.zero, 1f);
                 return;
             }
 
@@ -218,7 +244,44 @@ namespace TechnicalTask
                 cubeT    = morphT;
             }
 
-            stateController.SetPose(prevState, thisState, generalT, cubeT, morphT, 0f, 1f, Vector2.zero);
+            // Fade-out: 1 at fadeOutStartFrame, 0 at fadeOutEndFrame, clamped beyond.
+            float renderAlpha = 1f - Smoothstep(InvLerp(fadeOutStartFrame, fadeOutEndFrame, frame));
+
+            stateController.SetPose(prevState, thisState, generalT, cubeT, morphT, 0f, 1f, Vector2.zero, renderAlpha);
+        }
+
+        // Samples the position trajectory from the CSV at the current frame, interpolates
+        // between adjacent samples for sub-frame smoothness, applies worldScale/axisRemap/
+        // worldOffset, and writes it to positionTarget.localPosition.
+        private void ApplyMarkerPositionForFrame(float frame)
+        {
+            if (positionTarget == null || positionSamples.Count == 0) return;
+
+            // Position samples are in frame order; CSV is sequential 1..N so we can index
+            // directly by frame number with bounds checks.
+            int idx = Mathf.FloorToInt(frame) - positionSamples[0].Frame;
+            if (idx < 0) idx = 0;
+            if (idx >= positionSamples.Count) idx = positionSamples.Count - 1;
+
+            Vector3 a = positionSamples[idx].Position;
+            Vector3 raw;
+            if (interpolateBetweenFrames)
+            {
+                Vector3 b = (idx + 1 < positionSamples.Count) ? positionSamples[idx + 1].Position : a;
+                float   t = Mathf.Clamp01(frame - Mathf.FloorToInt(frame));
+                raw = Vector3.Lerp(a, b, t);
+            }
+            else
+            {
+                raw = a;
+            }
+
+            Vector3 scaled = new Vector3(
+                raw.x * worldScale * axisRemap.x,
+                raw.y * worldScale * axisRemap.y,
+                raw.z * worldScale * axisRemap.z);
+
+            positionTarget.localPosition = scaled + worldOffset;
         }
 
         private TransitionTiming FindTiming(int from, int to)
@@ -245,6 +308,7 @@ namespace TechnicalTask
         private void ParseCsv()
         {
             events.Clear();
+            positionSamples.Clear();
             clipFrames = 0;
 
             if (shortDataCsv == null)
@@ -256,6 +320,8 @@ namespace TechnicalTask
             string[] lines = shortDataCsv.text.Split('\n');
             int previousState = -1;
             int maxFrame      = 0;
+            Vector3 lastKnownPos = Vector3.zero;
+            bool everSawPos = false;
 
             for (int i = 0; i < lines.Length; i++)
             {
@@ -267,6 +333,23 @@ namespace TechnicalTask
                 if (cols.Length < 6) continue;
                 if (!int.TryParse(cols[0], out int frame))    continue;
                 if (!int.TryParse(cols[5], out int csvState)) continue;
+
+                // Parse position (may be empty for the State 4 tail).
+                Vector3 pos = lastKnownPos;
+                bool hasX = float.TryParse(cols[2], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float x);
+                bool hasY = float.TryParse(cols[3], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float y);
+                bool hasZ = float.TryParse(cols[4], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float z);
+                if (hasX && hasY && hasZ)
+                {
+                    pos = new Vector3(x, y, z);
+                    lastKnownPos = pos;
+                    everSawPos = true;
+                }
+                else if (!everSawPos)
+                {
+                    // No prior known position yet; leave at Vector3.zero.
+                }
+                positionSamples.Add(new PositionSample { Frame = frame, Position = pos });
 
                 int zeroBasedState = Mathf.Clamp(csvState - 1, 0, StateController.StateCount - 1);
                 maxFrame = Mathf.Max(maxFrame, frame);

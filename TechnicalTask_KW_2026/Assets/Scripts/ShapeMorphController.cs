@@ -50,7 +50,9 @@ namespace TechnicalTask
             }
             else
             {
-                mpb.SetColor(ColorId,        stateController.BlendedTint);
+                Color tint = stateController.BlendedTint;
+                tint.a    *= stateController.BlendedAlpha;
+                mpb.SetColor(ColorId,        tint);
                 mpb.SetFloat(MorphCurrentId, stateController.CurrentShapeIndex);
                 mpb.SetFloat(MorphNextId,    stateController.NextShapeIndex);
                 mpb.SetFloat(MorphTId,       stateController.MorphT);

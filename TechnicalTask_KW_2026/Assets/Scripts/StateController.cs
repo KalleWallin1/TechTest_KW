@@ -33,6 +33,7 @@ namespace TechnicalTask
         [SerializeField, Range(0f, 1f)] private float debugBlendedPulseAmount;
         [SerializeField] private float   debugBlendedScaleMultiplier;
         [SerializeField] private Vector2 debugBlendedPositionOffset;
+        [SerializeField, Range(0f, 1f)] private float debugBlendedAlpha;
 
         public int   CurrentState     { get; private set; } = 0;
         public int   NextState        { get; private set; } = 0;
@@ -48,6 +49,7 @@ namespace TechnicalTask
         public float   BlendedPulseAmount      { get; private set; }
         public float   BlendedScaleMultiplier  { get; private set; } = 1f;
         public Vector2 BlendedPositionOffset   { get; private set; } = Vector2.zero;
+        public float   BlendedAlpha            { get; private set; } = 1f;
 
         public int CurrentShapeIndex => presets[CurrentState].shapeIndex;
         public int NextShapeIndex    => presets[NextState].shapeIndex;
@@ -135,13 +137,14 @@ namespace TechnicalTask
         // Bypasses the internal timer and sets the pose directly with all blended values
         // computed externally (by CSVDriver). Per-state data (tint, digit, pulsing) is still
         // looked up locally from presets.
-        public void SetPose(int currentState, int nextState, float generalT, float rotationProgress, float morphProgress, float zRotationDegrees, float scaleMultiplier, Vector2 positionOffset)
+        public void SetPose(int currentState, int nextState, float generalT, float rotationProgress, float morphProgress, float zRotationDegrees, float scaleMultiplier, Vector2 positionOffset, float renderAlpha = 1f)
         {
             CurrentState       = Mathf.Clamp(currentState, 0, StateCount - 1);
             NextState          = Mathf.Clamp(nextState,    0, StateCount - 1);
             TransitionT        = Mathf.Clamp01(generalT);
             RotationProgress   = Mathf.Clamp01(rotationProgress);
             MorphT             = Mathf.Clamp01(morphProgress);
+            BlendedAlpha       = Mathf.Clamp01(renderAlpha);
             transitionDuration = 0f;
             elapsed            = 0f;
             ApplyBlendedOutputs(zRotationDegrees, scaleMultiplier, positionOffset);
@@ -171,6 +174,7 @@ namespace TechnicalTask
             debugBlendedPulseAmount      = BlendedPulseAmount;
             debugBlendedScaleMultiplier  = BlendedScaleMultiplier;
             debugBlendedPositionOffset   = BlendedPositionOffset;
+            debugBlendedAlpha            = BlendedAlpha;
         }
 
         private void EnsureArraysSized()

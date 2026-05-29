@@ -62,8 +62,9 @@ namespace TechnicalTask
                           + currentDigit * rotationPerTransition
                           + (nextDigit - currentDigit) * rotationPerTransition * t;
 
-                tint  = stateController.BlendedTint;
-                pulse = stateController.BlendedPulseAmount;
+                tint    = stateController.BlendedTint;
+                tint.a *= stateController.BlendedAlpha;
+                pulse   = stateController.BlendedPulseAmount;
             }
 
             ApplyYRotation(yRotation);

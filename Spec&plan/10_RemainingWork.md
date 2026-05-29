@@ -32,14 +32,40 @@ These items were on the previous version of this doc; they're now resolved:
 
 ## ① Must do for the deliverable
 
-### 1.1 — Windows standalone build
+### 1.1 — VR setup (planned addition)
+
+- **What:** Enable VR rendering in the project so the deliverable can be experienced in a headset. The brief notes VR as the ideal way to experience the result and bonus points are available.
+- **Where:**
+  - **Package Manager** → install:
+    - `XR Plugin Management` (4.x)
+    - `OpenXR Plugin` (1.x)
+    - Optionally `XR Interaction Toolkit` (only if you want controller input — not needed for a passive viewing experience).
+  - **Project Settings → XR Plug-in Management**:
+    - Tick **OpenXR** under the Windows Standalone tab.
+    - Under the **OpenXR** sub-settings, add an **Interaction Profile** matching your headset (e.g. Oculus Touch Controller, Meta Quest Touch, Valve Index, etc.). At least one is required even for passive viewing.
+    - Set Render Mode to **Single Pass Instanced** for performance.
+  - **Project Settings → Player → Other Settings → Color Space**: confirm **Linear** (URP requires this for proper VR rendering).
+  - **Scene**:
+    - Replace the existing `Main Camera` with an **XR Origin (XR Rig)** GameObject (`GameObject → XR → XR Origin (VR)`). The default Main Camera should be deleted or disabled.
+    - Position the XR Origin so the morph widget and reference video Quad are both in comfortable view (~1.5–2 m in front of the camera, slightly above eye height usually feels best for HMD).
+    - The `Anim_to_unity` Quad displaying the reference video should be world-space positioned next to the morph widget, NOT camera-attached, so both are visible from the same head position.
+  - **URP Renderer Asset**: confirm the active URP asset (e.g. `Assets/Settings/PC_RPAsset.asset`) has **Anti-aliasing (MSAA)** at 4x or 8x for VR (jaggies are very noticeable in HMD), and that `Renderer List` includes the Forward renderer (default).
+- **Why:** Bonus points per the brief; also a meaningfully better viewing experience for the evaluator.
+- **Effort:** M (setup is mostly clicking through Package Manager + Project Settings, but verifying everything renders correctly in HMD can take iteration).
+- **Validation checklist:**
+  - [ ] Headset connected (Quest Link, Air Link, or wired HMD).
+  - [ ] Hit Play in editor — should render to HMD with morph + video both visible.
+  - [ ] Test the build (Windows x64 standalone with VR) — launching the .exe should auto-detect the HMD.
+  - [ ] Verify the morph reads correctly in 3D — it's a 2D shape on a quad, so make sure it faces the user and isn't edge-on.
+
+### 1.2 — Windows standalone build
 
 - **What:** Build a Windows 64-bit standalone of the project.
-- **Where:** File → Build Settings → Windows x64 → Build. Output goes into `Build/` at the repo root.
+- **Where:** File → Build Settings → Windows x64 → Build. Output goes into `Build/` at the repo root. With VR enabled (item 1.1), the build will automatically support VR runtimes.
 - **Why:** Required deliverable per the brief.
 - **Effort:** S.
 
-### 1.2 — Write `ProcessDescription.md`
+### 1.3 — Write `ProcessDescription.md`
 
 - **What:** The short written description required by the brief. Should cover:
   - The three implementation variants delivered (procedural ring mesh, blendshape mesh, SDF shader) and why all three exist.
@@ -51,14 +77,14 @@ These items were on the previous version of this doc; they're now resolved:
 - **Why:** Required deliverable.
 - **Effort:** M.
 
-### 1.3 — Top-level `README.md`
+### 1.4 — Top-level `README.md`
 
-- **What:** How to run the build and how to open the project. Includes: where the .exe is, which scene is the main one (`MainScene.unity`), Unity version (6000.3.16f1), URP. Mention controls if any (Debug Scrub etc.).
+- **What:** How to run the build and how to open the project. Includes: where the .exe is, which scene is the main one (`MainScene.unity`), Unity version (6000.3.16f1), URP, VR runtime requirements (HMD with OpenXR support), how to launch in VR vs. desktop. Mention controls if any (Debug Scrub etc.).
 - **Where:** New file at repo root: `README.md`.
 - **Why:** Required for the deliverable zip.
 - **Effort:** S.
 
-### 1.4 — Package the zip
+### 1.5 — Package the zip
 
 - **What:** Create the deliverable zip per the brief.
 - **Contents:** `Build/` (the standalone), `TechnicalTask_KW_2026/` Unity project (sans `Library/`, `Logs/`, `Temp/`, `UserSettings/` — gitignored already), `ProcessDescription.md`, `README.md`, and optionally `Spec&plan/`.
@@ -130,20 +156,14 @@ These items were on the previous version of this doc; they're now resolved:
 - **Why:** Brief calls this optional. Would showcase the SDF variant's scalability (Plan B stays under 100 tris × N objects, Plan A wouldn't).
 - **Effort:** L.
 
-### 4.2 — VR support
-
-- **What:** Add OpenXR + XR Origin per spec 07's stretch goal.
-- **Why:** Brief mentions VR as "ideal way to experience the result."
-- **Effort:** M–L depending on XR rig complexity.
-
-### 4.3 — SDF glow halo on State 4
+### 4.2 — SDF glow halo on State 4
 
 - **What:** Render a soft halo around the square in Plan B by sampling the SDF at a larger threshold with falloff.
 - **Where:** `Assets/Shaders/ShapeMorphSDF.shader`.
 - **Why:** Free in shader cost, reinforces the "creative State 4" semantic.
 - **Effort:** S.
 
-### 4.4 — Continuous-forward cube rotation on loop
+### 4.3 — Continuous-forward cube rotation on loop
 
 - **What:** Currently when the CSV loops back from frame 250 → 0, the digit cube snaps backward 270° from "digit 4" to "digit 1." Add an accumulator that knows about loops so the cube keeps rotating forward indefinitely.
 - **Where:** `NumberCubeController.cs`.
@@ -188,6 +208,12 @@ These aren't tasks per se — they're choices that shaped the current state.
 
 Minimum to deliver:
 
-1. Do **1.1, 1.2, 1.3, 1.4** in that order — build, write the description, write the README, zip it.
+1. Do **1.1** (VR setup) — bonus points and meaningfully better viewing experience.
+2. Do **1.2** (Windows build) — required.
+3. Do **1.3** (ProcessDescription.md) — required.
+4. Do **1.4** (README.md) — required.
+5. Do **1.5** (zip the deliverable) — required.
 
-That's it. Everything else is polish. If you have an hour, also do **2.1** (alpha fade) and **2.3** (delete vestigial scripts). If you have an evening, **3.2** (spec banners) makes the included docs less confusing to a reviewer.
+That's the critical path. Everything else is polish. If you have an hour, also do **2.1** (alpha fade) and **2.3** (delete vestigial scripts). If you have an evening, **3.2** (spec banners) makes the included docs less confusing to a reviewer.
+
+**Realistic time estimate:** 1.1 (VR) is the biggest single chunk — budget 1–2 hours including HMD testing iteration. 1.2/1.4/1.5 are 5 minutes each. 1.3 (the write-up) is the most variable — could be 30 minutes for a tight version, or 2 hours for a polished one with the design journey baked in.
