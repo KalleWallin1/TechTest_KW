@@ -12,7 +12,7 @@ public class MorphStateController : MonoBehaviour
 
     [Header("Manual Morph Control")]
     [Range(0f, 3f)]
-    [Tooltip("0-1: Tri->Hex (43-113), 1-2: Hex->Sphere (181-225), 2-3: Sphere->Square (231-249)")]
+    [Tooltip("0-1: Tri->Hex (44-113), 1-2: Hex->Circle (181-225), 2-3: Circle->Square (231-249)")]
     public float morphState = 0f;
 
     private Animator animator;
@@ -21,18 +21,12 @@ public class MorphStateController : MonoBehaviour
     void Awake()
     {
         animator = GetComponent<Animator>();
-        if (animator != null) animator.speed = 0;
     }
 
     void Update()
     {
         if (animator == null) animator = GetComponent<Animator>();
-        if (animator == null || animator.runtimeAnimatorController == null) return;
-
-        float clipLength = animator.runtimeAnimatorController.animationClips[0].length;
-        if (clipLength <= 0) return;
-
-        float targetFrame = 1f;
+        if (animator == null) return;
 
         if (useCSVPlayback)
         {
@@ -44,32 +38,32 @@ public class MorphStateController : MonoBehaviour
                     currentCSVFrame = manager.currentFrame;
                 }
             }
-
-            targetFrame = currentCSVFrame;
             SyncMorphStateFromFrame(currentCSVFrame);
         }
-        else
+
+        // Drive the animator by normalized time based on currentCSVFrame
+        if (animator.runtimeAnimatorController != null)
         {
-            if (morphState <= 1.0f)
-                targetFrame = Mathf.Lerp(43f, 113f, morphState);
-            else if (morphState <= 2.0f)
-                targetFrame = Mathf.Lerp(181f, 225f, morphState - 1.0f);
-            else if (morphState <= 3.0f)
-                targetFrame = Mathf.Lerp(231f, 249f, morphState - 2.0f);
+            float clipLength = animator.runtimeAnimatorController.animationClips[0].length;
+            if (clipLength > 0)
+            {
+                float timeInSeconds = (currentCSVFrame - 1f) / FPS;
+                float normalizedTime = Mathf.Clamp01(timeInSeconds / clipLength);
+                animator.Play(0, 0, normalizedTime);
+                animator.speed = 0;
+                animator.Update(0);
+            }
         }
-
-        // Convert Frame to Normalized Time
-        float timeInSeconds = (targetFrame - 1f) / FPS;
-        float normalizedTime = Mathf.Clamp01(timeInSeconds / clipLength);
-
-        // Drive the animator
-        animator.Play(0, 0, normalizedTime);
-        // Using animator.Update(0) in Edit Mode is fine, but we must ensure we don't access .material in scripts
-        animator.Update(0);
     }
 
     private void SyncMorphStateFromFrame(int frame)
     {
+        // Schedule:
+        // State 1: 1-43 (Triangle)
+        // State 2: 44-180 (Hexagon)
+        // State 3: 181-230 (Circle)
+        // State 4: 231-250 (Square)
+        
         if (frame <= 43) morphState = 0f;
         else if (frame <= 113) morphState = (frame - 43f) / (113f - 43f);
         else if (frame < 181) morphState = 1.0f;
